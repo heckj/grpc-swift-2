@@ -57,6 +57,7 @@ import GRPCProtobuf // for message (de)serialization and error details
 - <doc:Generating-stubs>
 - <doc:client>
 - <doc:server>
+- <doc:Tracing>
 
 
 ### Streaming primitives
@@ -76,6 +77,11 @@ import GRPCProtobuf // for message (de)serialization and error details
 - ``CompressionAlgorithm``
 - ``CompressionAlgorithmSet``
 - ``GRPCContiguousBytes``
+
+### Observability
+
+- <doc:Tracing>
+- <doc:Tracing-Context-Propagation>
 
 ### Errors
 
