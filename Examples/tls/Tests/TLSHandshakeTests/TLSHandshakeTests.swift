@@ -21,9 +21,9 @@ import Testing
 
 @Suite("TLS and mTLS handshakes")
 struct TLSHandshakeTests {
-  /// Server-authenticated TLS: the server presents a certificate signed by the demo CA; the
-  /// client trusts that CA and fully verifies the server's certificate, including its hostname
-  /// (the certificate's SAN is 'localhost', matching where the client connects).
+  // Server-authenticated TLS: the server presents a certificate signed by the demo CA; the
+  // client trusts that CA and fully verifies the server's certificate, including its hostname
+  // (the certificate's SAN is 'localhost', matching where the client connects).
   @Test("Server-authenticated TLS")
   func tls() async throws {
     let pki = try DemoPKI()
@@ -60,9 +60,9 @@ struct TLSHandshakeTests {
     }
   }
 
-  /// Mutual TLS: the server also requires and verifies a client certificate, and the client
-  /// presents one -- both signed by the same demo CA, so a single 'trustRoots' value on each
-  /// side is enough to verify the other.
+  // Mutual TLS: the server also requires and verifies a client certificate, and the client
+  // presents one -- both signed by the same demo CA, so a single 'trustRoots' value on each
+  // side is enough to verify the other.
   @Test("Mutual TLS")
   func mtls() async throws {
     let pki = try DemoPKI()

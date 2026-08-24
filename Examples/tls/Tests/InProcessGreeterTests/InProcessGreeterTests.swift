@@ -19,9 +19,9 @@ import GRPCInProcessTransport
 import TLSDemo
 import Testing
 
-/// Demonstrates testing service business logic entirely in memory: `InProcessTransport` never
-/// binds to a socket and never negotiates TLS, so this is the right tool when a test cares about
-/// what a service *does*, not how a real client would reach it over the network.
+// Demonstrates testing service business logic entirely in memory: `InProcessTransport` never
+// binds to a socket and never negotiates TLS, so this is the right tool when a test cares about
+// what a service *does*, not how a real client would reach it over the network.
 @Suite("Greeter over the in-process transport")
 struct InProcessGreeterTests {
   @Test("sayHello, with no network binding")
