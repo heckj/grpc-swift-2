@@ -16,8 +16,10 @@
 
 import GRPCCore
 
-struct Greeter: Helloworld_Greeter.SimpleServiceProtocol {
-  func sayHello(
+package struct Greeter: Helloworld_Greeter.SimpleServiceProtocol {
+  package init() {}
+
+  package func sayHello(
     request: Helloworld_HelloRequest,
     context: ServerContext
   ) async throws -> Helloworld_HelloReply {

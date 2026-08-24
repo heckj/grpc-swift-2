@@ -25,24 +25,42 @@ import X509
 /// `grpc-swift-nio-transport`'s own test suite uses -- but, unlike that test utility, the server
 /// and client certificates here are signed by a single shared CA, which is what a real mTLS
 /// trust configuration needs on both sides.
-struct DemoPKI {
-  struct KeyPair {
-    let certificateDER: [UInt8]
-    let privateKeyDER: [UInt8]
+package struct DemoPKI {
+  package struct KeyPair {
+    package let certificateDER: [UInt8]
+    package let privateKeyDER: [UInt8]
   }
 
-  let caCertificateDER: [UInt8]
-  let server: KeyPair
-  let client: KeyPair
+  package let caCertificateDER: [UInt8]
+  package let server: KeyPair
+  package let client: KeyPair
 
-  init() throws {
-    let ca = try Self.makeCertificate(commonName: "Example Demo CA", issuer: nil, usage: .certificateAuthority)
-    let server = try Self.makeCertificate(commonName: "Example Demo Server", issuer: ca, usage: .server)
-    let client = try Self.makeCertificate(commonName: "Example Demo Client", issuer: ca, usage: .client)
+  package init() throws {
+    let ca = try Self.makeCertificate(
+      commonName: "Example Demo CA",
+      issuer: nil,
+      usage: .certificateAuthority
+    )
+    let server = try Self.makeCertificate(
+      commonName: "Example Demo Server",
+      issuer: ca,
+      usage: .server
+    )
+    let client = try Self.makeCertificate(
+      commonName: "Example Demo Client",
+      issuer: ca,
+      usage: .client
+    )
 
     self.caCertificateDER = ca.certificateDER
-    self.server = KeyPair(certificateDER: server.certificateDER, privateKeyDER: server.privateKeyDER)
-    self.client = KeyPair(certificateDER: client.certificateDER, privateKeyDER: client.privateKeyDER)
+    self.server = KeyPair(
+      certificateDER: server.certificateDER,
+      privateKeyDER: server.privateKeyDER
+    )
+    self.client = KeyPair(
+      certificateDER: client.certificateDER,
+      privateKeyDER: client.privateKeyDER
+    )
   }
 
   private enum Usage {

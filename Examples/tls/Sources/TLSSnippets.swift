@@ -35,6 +35,7 @@ func snippetCode() async throws {
     return try await greeter.sayHello(.with { $0.name = "TLS client" })
   }
 
+  #if canImport(Network)
   let tsReply = try await withGRPCClient(
     transport: .http2NIOTS(
       target: .dns(host: "your-gRPC-service.com"),
@@ -46,6 +47,7 @@ func snippetCode() async throws {
     // and make a request
     return try await greeter.sayHello(.with { $0.name = "TLS client" })
   }
+  #endif
 
   let testingTransportSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .tls(
     certificateChain: [.file(path: "path/to/server-cert.pem", format: .pem)],

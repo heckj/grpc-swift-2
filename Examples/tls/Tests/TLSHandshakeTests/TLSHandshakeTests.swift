@@ -16,21 +16,17 @@
 
 import GRPCCore
 import GRPCNIOTransportHTTP2Posix
+import TLSDemo
+import Testing
 
-@main
-struct TLSExample {
-  static func main() async throws {
+@Suite("TLS and mTLS handshakes")
+struct TLSHandshakeTests {
+  /// Server-authenticated TLS: the server presents a certificate signed by the demo CA; the
+  /// client trusts that CA and fully verifies the server's certificate, including its hostname
+  /// (the certificate's SAN is 'localhost', matching where the client connects).
+  @Test("Server-authenticated TLS")
+  func tls() async throws {
     let pki = try DemoPKI()
-
-    try await runTLSScenario(pki: pki)
-    try await runMTLSScenario(pki: pki)
-  }
-
-  /// Basic, server-authenticated TLS: the server presents a certificate signed by the demo CA;
-  /// the client trusts that CA and fully verifies the server's certificate, including its
-  /// hostname (the certificate's SAN is 'localhost', matching where the client connects).
-  private static func runTLSScenario(pki: DemoPKI) async throws {
-    print("--- TLS (server-authenticated) ---")
 
     let serverSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .tls(
       certificateChain: [.bytes(pki.server.certificateDER, format: .der)],
@@ -44,9 +40,7 @@ struct TLSExample {
       ),
       services: [Greeter()]
     ) { server in
-      guard let port = try await server.listeningAddress?.ipv4?.port else {
-        fatalError("Expected an IPv4 listening address.")
-      }
+      let port = try #require(await server.listeningAddress?.ipv4?.port)
 
       let clientSecurity: HTTP2ClientTransport.Posix.TransportSecurity = .tls {
         $0.trustRoots = .certificates([.bytes(pki.caCertificateDER, format: .der)])
@@ -62,15 +56,16 @@ struct TLSExample {
         return try await greeter.sayHello(.with { $0.name = "TLS client" })
       }
 
-      print("  \(reply.message)")
+      #expect(reply.message == "Hello, TLS client! This connection was verified.")
     }
   }
 
   /// Mutual TLS: the server also requires and verifies a client certificate, and the client
   /// presents one -- both signed by the same demo CA, so a single 'trustRoots' value on each
   /// side is enough to verify the other.
-  private static func runMTLSScenario(pki: DemoPKI) async throws {
-    print("--- mTLS (server- and client-authenticated) ---")
+  @Test("Mutual TLS")
+  func mtls() async throws {
+    let pki = try DemoPKI()
 
     let serverSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .mTLS(
       certificateChain: [.bytes(pki.server.certificateDER, format: .der)],
@@ -86,9 +81,7 @@ struct TLSExample {
       ),
       services: [Greeter()]
     ) { server in
-      guard let port = try await server.listeningAddress?.ipv4?.port else {
-        fatalError("Expected an IPv4 listening address.")
-      }
+      let port = try #require(await server.listeningAddress?.ipv4?.port)
 
       let clientSecurity: HTTP2ClientTransport.Posix.TransportSecurity = .mTLS(
         certificateChain: [.bytes(pki.client.certificateDER, format: .der)],
@@ -107,7 +100,7 @@ struct TLSExample {
         return try await greeter.sayHello(.with { $0.name = "mTLS client" })
       }
 
-      print("  \(reply.message)")
+      #expect(reply.message == "Hello, mTLS client! This connection was verified.")
     }
   }
 }

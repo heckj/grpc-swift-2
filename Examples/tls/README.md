@@ -1,13 +1,22 @@
 # TLS
 
 This example demonstrates enabling TLS and mutual TLS (mTLS) on a gRPC service using
-`grpc-swift-nio-transport`'s `TransportSecurity` configuration.
+a `TransportSecurity` configuration from the `grpc-swift-nio-transport` package, and showing 
+another test setup that uses `GRPCInProcessTransport`, which supports testing business logic
+without touching the network.
 
 ## Overview
 
-A `tls` command line tool that, on every run, generates a throwaway certificate authority plus
-a server and client leaf certificate entirely in memory (via `swift-certificates` -- nothing is
-written to disk), then runs two scenarios back to back:
+`DemoPKI` generates a throwaway certificate authority plus a server and client leaf certificate
+entirely in memory (via `swift-certificates` -- nothing is written to disk), fresh on every test
+run. `Greeter` is a minimal `Helloworld_Greeter` implementation shared by both test suites below.
+
+## What's tested
+
+### `Tests/TLSHandshakeTests`
+
+Real TLS over a real socket (`HTTP2ServerTransport.Posix`/`HTTP2ClientTransport.Posix`, bound to
+an ephemeral `127.0.0.1` port), using the in-memory certificates from `DemoPKI`:
 
 1. **TLS**: the server presents a certificate signed by the demo CA; the client trusts that CA
    and fully verifies the server, including its hostname.
@@ -15,12 +24,15 @@ written to disk), then runs two scenarios back to back:
    one. Both certificates are signed by the same CA, so a single `trustRoots` value on each side
    verifies the other.
 
+### `Tests/InProcessGreeterTests`
+
+The same `Greeter` service, wired up with `GRPCInProcessTransport`'s `InProcessTransport()`
+instead. There's no socket and no TLS handshake -- the client and server talk to each other
+entirely in memory within the test process. Reach for this pattern when a test needs to exercise
+service logic, not the transport it will eventually run over.
+
 ## Usage
 
 ```console
-$ swift run tls
---- TLS (server-authenticated) ---
-  Hello, TLS client! This connection was verified.
---- mTLS (server- and client-authenticated) ---
-  Hello, mTLS client! This connection was verified.
+$ swift test
 ```

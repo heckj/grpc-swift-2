@@ -28,8 +28,8 @@ let package = Package(
     .package(url: "https://github.com/apple/swift-asn1.git", from: "1.0.0"),
   ],
   targets: [
-    .executableTarget(
-      name: "tls",
+    .target(
+      name: "TLSDemo",
       dependencies: [
         .product(name: "GRPCCore", package: "grpc-swift-2"),
         .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
@@ -40,6 +40,22 @@ let package = Package(
       plugins: [
         .plugin(name: "GRPCProtobufGenerator", package: "grpc-swift-protobuf")
       ]
-    )
+    ),
+    .testTarget(
+      name: "TLSHandshakeTests",
+      dependencies: [
+        .target(name: "TLSDemo"),
+        .product(name: "GRPCCore", package: "grpc-swift-2"),
+        .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
+      ]
+    ),
+    .testTarget(
+      name: "InProcessGreeterTests",
+      dependencies: [
+        .target(name: "TLSDemo"),
+        .product(name: "GRPCCore", package: "grpc-swift-2"),
+        .product(name: "GRPCInProcessTransport", package: "grpc-swift-2"),
+      ]
+    ),
   ]
 )
