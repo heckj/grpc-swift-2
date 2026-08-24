@@ -1,107 +1,140 @@
 # TLS
 
-Encrypt gRPC connections and authenticate the server (and, with mutual TLS, the client) using
-the transport's TLS configuration.
-
-<!--
-Outline only -- fill in prose in your own voice. Notes in italics below each heading are what
-that section needs to cover and which verified facts/APIs to draw on. Delete the notes once the
-section is written.
--->
+Encrypt gRPC connections and authenticate the server using the transport's TLS configuration.
 
 ## Overview
 
-_State up front: TLS is not a `GRPCCore` concept. `GRPCCore` only defines the transport
-protocols (`ClientTransport`/`ServerTransport`); TLS is configured on the concrete transport
-you choose from `grpc-swift-nio-transport`, via the `transportSecurity:` parameter passed to
-`.http2NIOPosix`/`.http2NIOTS`. Say this explicitly and early -- it's the single most common
-point of confusion (a reader searching `GRPCCore` for "TLS" finds nothing, because there is
-nothing there to find). State the three-way choice every transport exposes up front:
-`.plaintext`, `.tls(...)`, `.mTLS(...)` -- covered in <doc:Mutual-TLS> instead of here._
+gRPC Swift provides an abstraction that supports multiple kinds of network connections and their configuration.
+Other gRPC transports provide their own configuration options.
 
-## Add the dependency
+Begin by choosing your transport, then import either the umbrella [GRPCNIOTransportHTTP2](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2)
+product or the platform-specific [GRPCNIOTransportHTTP2Posix](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2posix) or [GRPCNIOTransportHTTP2TransportServices](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2transportservices) directly.
 
-_Package.swift snippet: `grpc-swift-nio-transport`, either the umbrella `GRPCNIOTransportHTTP2`
-product or the platform-specific `GRPCNIOTransportHTTP2Posix`/`GRPCNIOTransportHTTP2TransportServices`
-directly. Reuse the existing snippet already in `Documentation.md`'s package-structure overview
-rather than inventing a new one -- stay consistent with what's already there._
+With the dependency added, specify the transport and choose the security posture with the `transportSecurity:` parameter that you pass into the factory methods for the transports. Use `TransportServices` only on Apple platforms. The following table links to each factory method's documentation:
 
-## Choosing a transport security mode
+| Transport | Client | Server |
+|---|---|---|
+| Posix | [.http2NIOPosix](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2posix/grpcniotransportcore/http2clienttransport/posix/http2nioposix(target:transportsecurity:config:resolverregistry:serviceconfig:eventloopgroup:)) | [.http2NIOPosix](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2posix/grpcniotransportcore/http2servertransport/posix/http2nioposix(address:transportsecurity:config:eventloopgroup:)) |
+| TransportServices | [.http2NIOTS](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2transportservices/grpcniotransportcore/http2clienttransport/transportservices/http2niots(target:transportsecurity:config:resolverregistry:serviceconfig:eventloopgroup:)) | [.http2NIOTS](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2transportservices/grpcniotransportcore/http2servertransport/transportservices/http2niots(address:transportsecurity:config:eventloopgroup:)) |
 
-_`.plaintext`, `.tls(...)`, `.mTLS(...)` as the three cases on `TransportSecurity` (verified in
-`Config+TLS.swift` for both `HTTP2ServerTransport.Posix` and `HTTP2ClientTransport.Posix`).
-Footnote `.customSecure` (2.8+) as an escape hatch for injecting your own security handlers via
-`channelDebuggingCallbacks.onCreateTCPConnection` -- out of scope here, link to the API reference
-only._
+The gRPC Swift API provides specific types for each transport, with separate server and client transport types.
+Each transport type provides its own `TransportSecurity` type that offers the choice between:
 
-_Precision note, state clearly and early: `HTTP2ServerTransport.Posix.TransportSecurity` and
-`HTTP2ServerTransport.TransportServices.TransportSecurity` are different types with different
-initializers, despite sharing case names and this article's examples. Structure every code
-example below so the Posix and TransportServices versions are visually adjacent, not interleaved
-in prose._
+- `.plaintext`: no encryption or verification
+- `.tls`: encrypt and authenticate the server
+- `.mTLS`: encrypt and authenticate both the client and the server
 
-## Basic secure setup with real certificates
+This article covers configuring TLS connections. Read <doc:mTLS> for details on configuring mutual TLS.
 
-_Posix: `.tls(certificateChain:privateKey:configure:)`, using
-`TLSConfig.CertificateSource.file(path:format:)`/`TLSConfig.PrivateKeySource.file(path:format:)`.
-Call out explicitly that `format:` is a required parameter -- the equivalent snippet in the
-workshop (`grpc-swift-workshop`'s `01-SecurityWithTLS.md`) omits it and won't compile against
-the current API. Show the resulting defaults (`clientCertificateVerification: .noVerification`,
-`trustRoots: .systemDefault`, `requireALPN: false`) from `TLS.defaults(...)`._
+## Choose and configure a transport security mode
 
-_TransportServices: `.tls(identityProvider:configure:)`, taking a
-`@Sendable () throws -> SecIdentity` instead of file paths. Flag plainly that this is a
-different acquisition model entirely (Keychain/`Security` framework, not files on disk) and
-that teaching Keychain identity management is out of scope -- link to Apple's `SecIdentity`
-documentation instead of attempting to replicate it here._
+When you choose `.tls`, you can use the system defaults, which verify the host certificate against the system's trusted certificates.
+You can also fully control the TLS configuration, including the certificate chain, the [trust roots or their locations](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransportcore/tlsconfig/trustrootssource), and the [level of certificate validation](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransportcore/tlsconfig/certificateverification) that the API provides.
 
-## Self-signed certificates for local testing
+Configure the security for the transport when you create the client.
+The following example shows a default `.tls` configuration to an external host by its DNS name:
 
-_Two real paths, not the workshop's `openssl`-only approach:_
+```swift
+let reply = try await withGRPCClient(
+  transport: .http2NIOPosix(
+    target: .dns(host: "your-gRPC-service.com"),
+    transportSecurity: .tls
+  )
+) { client in
+  // Create a service endpoint client by wrapping the gRPC client
+  let greeter = Helloworld_Greeter.Client(wrapping: client)
+  // and make a request
+  return try await greeter.sayHello(.with { $0.name = "TLS client" })
+}
+```
 
-_1. **`openssl` CLI** (what the workshop shows, still valid): generate a CA, a server cert
-signed by it, done. Quick, no extra Swift dependencies, produces PEM. Cite the workshop's
-commands as a starting point but verify they still produce output the current API accepts._
+The same pattern works on Apple platforms with `TransportServices`, which builds on Apple's [Network](https://developer.apple.com/documentation/network) framework.
+The following example uses the `TransportServices` factory method to create the transport:
 
-_2. **In-Swift generation**, for no-shell-dependency / CI-friendly cases: cite the verified,
-already-shipping pattern in `grpc-swift-nio-transport`'s own test suite
-(`Tests/GRPCNIOTransportHTTP2Tests/Test Utilities/SelfSignedCertificateKeyPairs.swift`), which
-uses `swift-certificates` (`X509`), `swift-crypto` (`Crypto`), and `swift-asn1` (`SwiftASN1`) to
-build a `Certificate` and serialize it directly -- no shelling out. Note the added dependencies
-this pulls in versus option 1, so a reader can make an informed choice._
+```swift
+let reply = try await withGRPCClient(
+  transport: .http2NIOTS(
+    target: .dns(host: "your-gRPC-service.com"),
+    transportSecurity: .tls
+  )
+) { client in
+  // ...
+}
+```
 
-_Then: how you actually get a client to trust a self-signed cert --
-`trustRoots: .certificates([.file(path:format:)])` pointed at the self-signed cert, plus either
-`.noHostnameVerification` (chain still validated, hostname match skipped -- reasonable for local
-testing against `localhost`) or `.noVerification` (nothing validated at all). State plainly that
-`.noVerification` should not ship to production; it's a "make it connect while I'm debugging
-something else" escape hatch, not a testing pattern to standardize on._
+You can create a TLS configuration and use it across multiple client instances, or use `.tls(configure:)` to adjust the default configuration.
+For example, the following code disables hostname verification during TLS validation:
 
-## PEM vs. DER: a backend-specific gotcha
+```swift
+let reply = try await withGRPCClient(
+  transport: .http2NIOPosix(
+    target: .dns(host: "your-gRPC-service.com"),
+    transportSecurity: .tls(configure: { config in
+      config.serverCertificateVerification = .noHostnameVerification
+    })
+  )
+) { client in
+  // ...
+}
+```
 
-_Verified in `GRPCNIOTransportHTTP2TransportServices/Config+TLS.swift`: on the TransportServices
-backend, custom trust-root certificates **must** be DER-encoded -- the code path for
-`.file`/`.bytes` with `format: .pem` hits a `fatalError`, not a thrown error, not a graceful
-fallback. Posix accepts either PEM or DER. This means a trust-root snippet copy-pasted from a
-Posix example (PEM, the common default from `openssl`) crashes at runtime on Apple platforms
-using `.http2NIOTS`. Give the one-line fix: `openssl x509 -in ca-cert.pem -outform der -out
-ca-cert.der`. This is worth its own heading, not a footnote -- it's the kind of thing that only
-surfaces once someone actually runs the "obvious" snippet on the other backend._
+> Tip: gRPC Swift spans multiple packages — the transport packages define distinct `TLSConfig` and `TransportSecurity` types per transport. The Posix and TransportServices variants share case names for convenience, but they're separate types with separate initializers.
 
-## Reference documentation
+## Create self-signed certificates for local testing
 
-_Plain markdown links (not DocC symbol links -- `GRPCCore` has no dependency on
-`grpc-swift-nio-transport`, so symbol-link syntax can't resolve here regardless of visibility
-annotations) to the SwiftPackageIndex-hosted pages for:_
+When you intend to use TLS, it can be convenient to create temporary, self-signed certificates for local testing.
+You can create a temporary certificate authority, server certificate, and private key to use locally.
 
-_- `TLSConfig` and its nested types (`CertificateSource`, `PrivateKeySource`, `TrustRootsSource`,
-`CertificateVerification`) -- `GRPCNIOTransportCore`._
-_- `HTTP2ServerTransport.Posix.TransportSecurity`/`.TLS` and the `HTTP2ClientTransport` equivalents
--- `GRPCNIOTransportHTTP2Posix`._
-_- The TransportServices equivalents -- `GRPCNIOTransportHTTP2TransportServices`._
-_- `swift-certificates`' `X509` module, for the in-Swift self-signed path._
+The following example illustrates using `openssl` to:
+- Create the private key and certificate for a certificate authority.
+- Create a server key and certificate request.
+- Sign the certificate request to create a server certificate.
 
-## Next step
+```bash
+# Generate CA certificate - ca-key.pem, ca-cert.pem
+openssl req -x509 -newkey rsa:4096 -nodes \
+  -keyout ca-key.pem -out ca-cert.pem -days 365
 
-_Link to <doc:Mutual-TLS> for client authentication, private CA trust roots, certificate
-rotation, and custom verification callbacks._
+# Generate server certificate - server-key.pem, server-req.pem
+openssl req -newkey rsa:4096 -nodes \
+  -keyout server-key.pem -out server-req.pem
+
+# Sign server certificate with CA - server-cert.pem
+openssl x509 -req -in server-req.pem -days 365 \
+  -CA ca-cert.pem -CAkey ca-key.pem -CAcreateserial \
+  -out server-cert.pem
+```
+
+With the Posix transport, use [.tls(certificateChain:privateKey:configure:)](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2posix/grpcniotransportcore/http2servertransport/posix/transportsecurity/tls(certificatechain:privatekey:configure:)) for the server's TLS configuration.
+Use [TLSConfig.CertificateSource.file(path:format:)](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransportcore/tlsconfig/certificatesource/file(path:format:)) to reference your generated server certificate, and
+[TLSConfig.PrivateKeySource.file(path:format:)](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransportcore/tlsconfig/privatekeysource/file(path:format:)) to reference your generated server key.
+
+For example:
+```swift
+let testingTransportSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .tls(
+  certificateChain: [.file(path: "path/to/server-cert.pem", format: .pem)],
+  privateKey: .file(path: "path/to/server-key.pem", format: .pem)
+)
+```
+
+> Tip: Specify the format of the certificate and key when you load them. The gRPC Swift API provides
+> support for both DER (`.der`) and PEM (`.pem`) encoded content using [SerializationFormat](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransportcore/tlsconfig/serializationformat).
+
+The `TransportServices` transport loads identities from the Keychain using Apple's [Security](https://developer.apple.com/documentation/security/) framework, specifically [SecIdentity](https://developer.apple.com/documentation/security/secidentity).
+
+When you create a client to interact with the self-signed certificates in a gRPC server, provide the certificate authority's certificate (`ca-cert.pem`) so the client can validate the server's certificate.
+The following example illustrates a client configured to access the same host it runs on (`localhost`) on port `8765`:
+
+```swift
+let client = GRPCClient(
+  transport: try .http2NIOPosix(
+    target: .ipv4(address: "127.0.0.1", port: 8765),
+    transportSecurity: .tls(configure: { config in
+      config.trustRoots = .certificates([.file(path: "certs/ca-cert.pem", format: .pem)])
+    })
+  )
+)
+```
+
+> Tip: Trust-root certificates for TransportServices must be DER-encoded, while Posix transports support either PEM or DER encoding. You can transform a local CA certificate into DER encoding using the following command:
+> `openssl x509 -in ca-cert.pem -outform der -out ca-cert.der`

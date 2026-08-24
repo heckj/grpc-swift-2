@@ -13,9 +13,7 @@ written to disk), then runs two scenarios back to back:
    and fully verifies the server, including its hostname.
 2. **mTLS**: the server also requires and verifies a client certificate; the client presents
    one. Both certificates are signed by the same CA, so a single `trustRoots` value on each side
-   verifies the other -- unlike `grpc-swift-nio-transport`'s own test utility
-   (`SelfSignedCertificateKeyPairs`), which generates two *independently* self-signed
-   certificates with no shared CA.
+   verifies the other.
 
 ## Usage
 
@@ -26,6 +24,3 @@ $ swift run tls
 --- mTLS (server- and client-authenticated) ---
   Hello, mTLS client! This connection was verified.
 ```
-
-Both scenarios bind to an ephemeral port (`port: 0`) and read back the assigned port from
-`server.listeningAddress`, so they don't collide with anything else running locally.

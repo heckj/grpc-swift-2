@@ -19,6 +19,75 @@ certificate and key, issued by a CA both sides trust, which is a real distributi
 burden the workshop's "consider mTLS" one-liner (`06-Production-Readiness/01-SecurityWithTLS.md`)
 doesn't get into._
 
+On Apple platforms - 
+NIOTransport uses SecIdentity for mTLS (https://developer.apple.com/documentation/security/secidentity) from the Keychain (ref: https://developer.apple.com/documentation/security/storing-an-identity-in-the-keychain)
+where you provide a closure that returns the SecIdentity instance and another that provides the configuration (https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/main/documentation/grpcniotransporthttp2transportservices/grpcniotransportcore/http2clienttransport/transportservices/tls) for TLS
+
+or you can use .http2NIOPosix with plaintext, tls, or mTLS - and includes an optional reloader to reload private keys and certificates with a certificate reloader (https://swiftpackageindex.com/apple/swift-nio-extras/main/documentation/niocertificatereloading/certificatereloader) from swift-nio-extras (https://github.com/apple/swift-nio-extras)
+
+
+## Demo: Generating certificates
+
+generating TLS certificates:
+
+```bash
+# Generate CA certificate
+openssl req -x509 -newkey rsa:4096 -nodes \
+  -keyout ca-key.pem -out ca-cert.pem -days 365
+
+# Generate server certificate
+openssl req -newkey rsa:4096 -nodes \
+  -keyout server-key.pem -out server-req.pem
+
+# Sign server certificate with CA
+openssl x509 -req -in server-req.pem -days 365 \
+  -CA ca-cert.pem -CAkey ca-key.pem -CAcreateserial \
+  -out server-cert.pem
+```
+
+## Demo: Configuring TLS on server
+
+Update server transport configuration:
+
+```swift
+let server = GRPCServer(
+  transport: .http2NIOPosix(
+    address: .ipv4(host: "0.0.0.0", port: config.port),
+    transportSecurity: .tls(
+      certificateChain: [
+        .file(path: "certs/server-cert.pem")
+      ],
+      privateKey: .file(path: "certs/server-key.pem")
+    )
+  ),
+  services: [serviceProvider]
+)
+```
+
+## Demo: Configuring TLS on client
+
+Update client transport:
+
+```swift
+let client = GRPCClient(
+  transport: try .http2NIOPosix(
+    target: .ipv4(host: "127.0.0.1", port: 50051),
+    transportSecurity: .tls(
+      serverCertificateVerification: .certificate(
+        trustRoots: .file(path: "certs/ca-cert.pem")
+      )
+    )
+  )
+)
+```
+
+## Key takeaways
+
+- Always use TLS in production
+- Manage certificates securely
+- Use certificate rotation
+- Consider mutual TLS (mTLS) for service-to-service auth
+
 ## The mTLS-specific API
 
 _`.mTLS(certificateChain:privateKey:configure:)` exists as its own factory on both

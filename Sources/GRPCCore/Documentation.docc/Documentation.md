@@ -57,8 +57,11 @@ import GRPCProtobuf // for message (de)serialization and error details
 - <doc:Generating-stubs>
 - <doc:client>
 - <doc:server>
-- <doc:TLS>
 
+### Security
+
+- <doc:TLS>
+- <doc:mTLS>
 
 ### Streaming primitives
 
@@ -77,11 +80,6 @@ import GRPCProtobuf // for message (de)serialization and error details
 - ``CompressionAlgorithm``
 - ``CompressionAlgorithmSet``
 - ``GRPCContiguousBytes``
-
-### Security
-
-- <doc:TLS>
-- <doc:Mutual-TLS>
 
 ### Errors
 
