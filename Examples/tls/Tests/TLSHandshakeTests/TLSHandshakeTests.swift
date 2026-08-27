@@ -16,8 +16,10 @@
 
 import GRPCCore
 import GRPCNIOTransportHTTP2Posix
+import NIOSSL
 import TLSDemo
 import Testing
+import X509
 
 @Suite("TLS and mTLS handshakes")
 struct TLSHandshakeTests {
@@ -26,6 +28,8 @@ struct TLSHandshakeTests {
   // (the certificate's SAN is 'localhost', matching where the client connects).
   @Test("Server-authenticated TLS")
   func tls() async throws {
+    // creates an in-memory certificate authority, server certificate, and private key
+    // to use for TLS or mTLS validation.
     let pki = try DemoPKI()
 
     let serverSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .tls(
@@ -101,6 +105,128 @@ struct TLSHandshakeTests {
       }
 
       #expect(reply.message == "Hello, mTLS client! This connection was verified.")
+    }
+  }
+
+  // Custom server-side verification example
+
+  // Instead of one of the built-in verification modes, this example runs its own
+  // logic to validate the client's certificate chain.
+  //
+  // The callback receives that certificate chain and a promise it must fulfill with the
+  // verification outcome. It's only invoked because `clientCertificateVerification` here is
+  // `noHostnameVerification` (set by `.mTLS`'s defaults) rather than `.noVerification`.
+  @Test("Custom server-side verification callback")
+  func customServerVerificationCallback() async throws {
+    let pki = try DemoPKI()
+
+    try await confirmation(expectedCount: 1) { calledCustomCallback in
+      let serverSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .mTLS(
+        certificateChain: [.bytes(pki.server.certificateDER, format: .der)],
+        privateKey: .bytes(pki.server.privateKeyDER, format: .der)
+      ) { config in
+        config.trustRoots = .certificates([.bytes(pki.caCertificateDER, format: .der)])
+        config.customVerificationCallback = { certificates, promise in
+          // What the callback has access to: the peer's presented certificate chain (just the
+          // client's leaf certificate here, since DemoPKI signs it directly with the CA), and a
+          // promise that must be fulfilled with the verification outcome.
+
+          // Convert from an NIOSSLCertificate into a swift-certificates Certificate
+          // (https://swiftpackageindex.com/apple/swift-certificates/documentation/x509/certificate)
+          // to more easily access the distinguished name (unique identity) of the subject of the certificate.
+          let presented = try! Certificate(derEncoded: certificates[0].toDERBytes())
+
+          // In a SPIFEE-style workload validation, the client will have its unique identity
+          // encoded in the certificates Subject Alterantive Name (SAN), accessible
+          // from the `subject`, which is an instance of DistinguishedName
+          // (https://swiftpackageindex.com/apple/swift-certificates/documentation/x509/distinguishedname)
+          #expect(presented.subject.description.contains("Example Demo Client"))
+
+          calledCustomCallback.confirm()
+          promise.succeed(
+            .certificateVerified(VerificationMetadata(ValidatedCertificateChain(certificates)))
+          )
+        }
+      }
+
+      try await withGRPCServer(
+        transport: .http2NIOPosix(
+          address: .ipv4(host: "127.0.0.1", port: 0),
+          transportSecurity: serverSecurity
+        ),
+        services: [Greeter()]
+      ) { server in
+        let port = try #require(await server.listeningAddress?.ipv4?.port)
+
+        let clientSecurity: HTTP2ClientTransport.Posix.TransportSecurity = .mTLS(
+          certificateChain: [.bytes(pki.client.certificateDER, format: .der)],
+          privateKey: .bytes(pki.client.privateKeyDER, format: .der)
+        ) { config in
+          config.trustRoots = .certificates([.bytes(pki.caCertificateDER, format: .der)])
+        }
+
+        let reply = try await withGRPCClient(
+          transport: .http2NIOPosix(
+            target: .dns(host: "localhost", port: port),
+            transportSecurity: clientSecurity
+          )
+        ) { client in
+          let greeter = Helloworld_Greeter.Client(wrapping: client)
+          return try await greeter.sayHello(.with { $0.name = "mTLS client" })
+        }
+
+        #expect(reply.message == "Hello, mTLS client! This connection was verified.")
+      }
+    }
+  }
+
+  // Custom client-side verification: the mirror image of the server-side case above, but
+  // gated on `serverCertificateVerification` instead. The callback again receives the presented
+  // certificate chain -- the server's leaf certificate -- and a promise to fulfill.
+  @Test("Custom client-side verification callback")
+  func customClientVerificationCallback() async throws {
+    let pki = try DemoPKI()
+
+    let serverSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .tls(
+      certificateChain: [.bytes(pki.server.certificateDER, format: .der)],
+      privateKey: .bytes(pki.server.privateKeyDER, format: .der)
+    )
+
+    try await confirmation(expectedCount: 1) { calledCustomCallback in
+      try await withGRPCServer(
+        transport: .http2NIOPosix(
+          address: .ipv4(host: "127.0.0.1", port: 0),
+          transportSecurity: serverSecurity
+        ),
+        services: [Greeter()]
+      ) { server in
+        let port = try #require(await server.listeningAddress?.ipv4?.port)
+
+        let clientSecurity: HTTP2ClientTransport.Posix.TransportSecurity = .tls {
+          $0.trustRoots = .certificates([.bytes(pki.caCertificateDER, format: .der)])
+          $0.customVerificationCallback = { certificates, promise in
+            let presented = try! Certificate(derEncoded: certificates[0].toDERBytes())
+            #expect(presented.subject.description.contains("Example Demo Server"))
+
+            calledCustomCallback.confirm()
+            promise.succeed(
+              .certificateVerified(VerificationMetadata(ValidatedCertificateChain(certificates)))
+            )
+          }
+        }
+
+        let reply = try await withGRPCClient(
+          transport: .http2NIOPosix(
+            target: .dns(host: "localhost", port: port),
+            transportSecurity: clientSecurity
+          )
+        ) { client in
+          let greeter = Helloworld_Greeter.Client(wrapping: client)
+          return try await greeter.sayHello(.with { $0.name = "TLS client" })
+        }
+
+        #expect(reply.message == "Hello, TLS client! This connection was verified.")
+      }
     }
   }
 }

@@ -19,12 +19,14 @@ import Foundation
 import SwiftASN1
 import X509
 
-/// A throwaway, in-memory certificate authority plus server and client leaf certificates, for
-/// demonstrating TLS and mutual TLS without ever writing a certificate or private key to disk.
-/// Generated fresh on every run using `swift-certificates`, the same approach
-/// `grpc-swift-nio-transport`'s own test suite uses -- but, unlike that test utility, the server
-/// and client certificates here are signed by a single shared CA, which is what a real mTLS
-/// trust configuration needs on both sides.
+/// Generates a throw-away, in-memory combination of a (short lived) certificate authority,
+/// along with a server certificate and a client certificate to use for validating mTLS logic for gRPC
+/// without writing a certificate or private key to disk.
+///
+/// A new combination of all three is generated when DemoPKI is initialized. This follows the
+/// pattern used by tests in the package `grpc-swift-nio-transport`, but in this setup
+/// the client and server certificates are signed by the same CA, a little more aligned to validating
+/// mTLS.
 package struct DemoPKI {
   package struct KeyPair {
     package let certificateDER: [UInt8]
@@ -111,7 +113,7 @@ package struct DemoPKI {
       serialNumber: Certificate.SerialNumber(),
       publicKey: privateKey.publicKey,
       notValidBefore: now.addingTimeInterval(-60 * 60),
-      notValidAfter: now.addingTimeInterval(60 * 60 * 24 * 365),
+      notValidAfter: now.addingTimeInterval(60 * 60 * 24 * 7),
       issuer: issuerName,
       subject: subjectName,
       signatureAlgorithm: .ecdsaWithSHA256,

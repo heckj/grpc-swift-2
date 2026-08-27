@@ -78,4 +78,19 @@ func snippetCode() async throws {
     )
   )
 
+  // Code snippet examples for the mTLS.md article
+
+  let mTLSServerSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .mTLS(
+    certificateChain: [.file(path: "path/to/server-cert.pem", format: .pem)],
+    privateKey: .file(path: "path/to/server-key.pem", format: .pem)
+  ) { config in
+    config.trustRoots = .certificates([.file(path: "path/to/ca-cert.pem", format: .pem)])
+  }
+
+  let mTLSClientSecurity: HTTP2ClientTransport.Posix.TransportSecurity = .mTLS(
+    certificateChain: [.file(path: "path/to/client-cert.pem", format: .pem)],
+    privateKey: .file(path: "path/to/client-key.pem", format: .pem)
+  ) { config in
+    config.trustRoots = .certificates([.file(path: "path/to/ca-cert.pem", format: .pem)])
+  }
 }
