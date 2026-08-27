@@ -14,7 +14,7 @@ With the dependency added, specify the transport and choose the security posture
 
 | Transport | Client | Server |
 |---|---|---|
-| Posix | [.http2NIOPosix](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2posix/grpcniotransportcore/http2clienttransport/posix/http2nioposix(target:transportsecurity:config:resolverregistry:serviceconfig:eventloopgroup:)) | [.http2NIOPosix](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2posix/grpcniotransportcore/http2servertransport/posix/http2nioposix(address:transportsecurity:config:eventloopgroup:)) |
+| POSIX | [.http2NIOPosix](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2posix/grpcniotransportcore/http2clienttransport/posix/http2nioposix(target:transportsecurity:config:resolverregistry:serviceconfig:eventloopgroup:)) | [.http2NIOPosix](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2posix/grpcniotransportcore/http2servertransport/posix/http2nioposix(address:transportsecurity:config:eventloopgroup:)) |
 | TransportServices | [.http2NIOTS](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2transportservices/grpcniotransportcore/http2clienttransport/transportservices/http2niots(target:transportsecurity:config:resolverregistry:serviceconfig:eventloopgroup:)) | [.http2NIOTS](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2transportservices/grpcniotransportcore/http2servertransport/transportservices/http2niots(address:transportsecurity:config:eventloopgroup:)) |
 
 The gRPC Swift API provides specific types for each transport, with separate server and client transport types.
@@ -108,7 +108,7 @@ openssl x509 -req -in server-req.pem -days 28 \
   -out server-cert.pem
 ```
 
-With the Posix transport, use [.tls(certificateChain:privateKey:configure:)](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2posix/grpcniotransportcore/http2servertransport/posix/transportsecurity/tls(certificatechain:privatekey:configure:)) for the server's TLS configuration.
+With the `Posix` transport, use [.tls(certificateChain:privateKey:configure:)](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2posix/grpcniotransportcore/http2servertransport/posix/transportsecurity/tls(certificatechain:privatekey:configure:)) for the server's TLS configuration.
 Use [TLSConfig.CertificateSource.file(path:format:)](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransportcore/tlsconfig/certificatesource/file(path:format:)) to reference your generated server certificate, and
 [TLSConfig.PrivateKeySource.file(path:format:)](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransportcore/tlsconfig/privatekeysource/file(path:format:)) to reference your generated server key.
 For example:
@@ -121,7 +121,7 @@ let testingTransportSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .tl
 ```
 
 The example above identifies the encoding format of the certificates that you load from the file system.
-The gRPC Swift API provides support for both DER (`.der`) and PEM (`.pem`) encoded content using [SerializationFormat](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransportcore/tlsconfig/serializationformat).
+The gRPC Swift API provides support for both `.der` and `.pem` encoded content using [SerializationFormat](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransportcore/tlsconfig/serializationformat).
 
 The `TransportServices` transport loads identities from the Keychain using Apple's [Security](https://developer.apple.com/documentation/security/) framework, specifically [SecIdentity](https://developer.apple.com/documentation/security/secidentity).
 
@@ -133,15 +133,17 @@ let client = GRPCClient(
   transport: try .http2NIOPosix(
     target: .ipv4(address: "127.0.0.1", port: 8765),
     transportSecurity: .tls(configure: { config in
-      config.trustRoots = .certificates([.file(path: "certs/ca-cert.pem", format: .pem)])
+      config.trustRoots = .certificates([
+        .file(path: "certs/ca-cert.pem", format: .pem)
+      ])
     })
   )
 )
 ```
 
-> Tip: Trust-root certificates for TransportServices must be DER-encoded, while Posix transports support either PEM or DER encoding.
+> Tip: Trust-root certificates for TransportServices must use `.der` encoding, while `Posix` transports support either `.pem` or `.der` encoding.
 
-You can transform a local CA certificate into DER encoding using the following command:
+You can transform a local CA certificate into `.der` encoding using the following command:
 
 ```bash
 openssl x509 -in ca-cert.pem -outform der -out ca-cert.der

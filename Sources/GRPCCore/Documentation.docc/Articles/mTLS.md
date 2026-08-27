@@ -21,18 +21,18 @@ Like `.tls`, the types for client and server transport security are distinct, bu
 
 | Transport | Client | Server |
 |---|---|---|
-| Posix | [.mTLS](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2posix/grpcniotransportcore/http2clienttransport/posix/transportsecurity/mtls(certificatechain:privatekey:configure:)) | [.mTLS](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2posix/grpcniotransportcore/http2servertransport/posix/transportsecurity/mtls(certificatechain:privatekey:configure:)) |
+| POSIX | [.mTLS](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2posix/grpcniotransportcore/http2clienttransport/posix/transportsecurity/mtls(certificatechain:privatekey:configure:)) | [.mTLS](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2posix/grpcniotransportcore/http2servertransport/posix/transportsecurity/mtls(certificatechain:privatekey:configure:)) |
 | TransportServices | [.mTLS](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2transportservices/grpcniotransportcore/http2clienttransport/transportservices/transportsecurity/mtls(identityprovider:configure:)) | [.mTLS](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2transportservices/grpcniotransportcore/http2servertransport/transportservices/transportsecurity/mtls(identityprovider:configure:)) |
 
 The parameters for these configurations typically expect a list of certificates (`certificateChain`), the private key corresponding to the certificate (`privateKey`), and a closure that you use to configure the TLS settings (`configure`).
 
-> Tip: When you configure the CA certificate chain for mTLS validation with Transport Services, the API expects the certificates to be encoded with `.der` encoding. The POSIX transport allows either `der` or `pem` encoding.
+> Tip: When you configure the CA certificate chain for mTLS validation with Transport Services, the API expects the certificates to be encoded with `.der` encoding. The `Posix` transport allows either `.pem` or `.der` encoding.
 
 ### Use the same certificate authority for both sides
 
 In addition to providing the certificate and private key, ensure that you provide the certificate authority in the TLS configuration to both the client and server configuration.
 
-The following code illustrates configuring the transport security for a POSIX server transport:
+The following code illustrates configuring the transport security for a `Posix` server transport:
 
 ```swift
 let mTLSServerSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .mTLS(
@@ -76,12 +76,12 @@ If a server certificate leaks, an attacker can intercept and decrypt private tra
 Rotating both credentials ensures that a stolen identity does not grant permanent access.
 Use code to regularly update both client and server certificates and keys to maintain security.
 
-The POSIX transport offers an mTLS configuration that uses a type that conforms to [CertificateReloader](https://swiftpackageindex.com/apple/swift-nio-extras/documentation/niocertificatereloading/certificatereloader), from [swift-nio-extras](https://github.com/apple/swift-nio-extras).
+The `Posix` transport offers an mTLS configuration that uses a type that conforms to [CertificateReloader](https://swiftpackageindex.com/apple/swift-nio-extras/documentation/niocertificatereloading/certificatereloader), from [swift-nio-extras](https://github.com/apple/swift-nio-extras).
 The `swift-nio-extras` package provides a [TimedCertificateReloader](https://swiftpackageindex.com/apple/swift-nio-extras/documentation/niocertificatereloading/timedcertificatereloader) that reloads certificates on a configurable, regular basis.
 
 > Note: If you create a TimedCertificateReloader, ensure you start with an existing valid certificate.
 
-The Posix transport offers an mTLS factory method overload that takes a `CertificateReloader`. The following table links to each factory method's documentation.
+The `Posix` transport offers an mTLS factory method overload that takes a `CertificateReloader`. The following table links to each factory method's documentation.
 
 | Client | Server |
 |---|---|
@@ -94,7 +94,7 @@ then you may need to do additional, custom validation of the client certificates
 For example, you may need to read the identity from the provided certificate and validate it.
 You can configure custom client and server verification callbacks that gRPC invokes when validating the TLS connection.
 
-To use the custom verification callback that the gRPC-swift transport provides,
+To use the custom verification callback that the gRPC Swift transport provides,
 set `customVerificationCallback` when you configure the transport.
 The following example illustrates providing a custom callback:
 
@@ -112,12 +112,16 @@ let serverSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .mTLS(
 
     // In a SPIFFE-style workload validation, the client will have its unique identity
     // encoded in the certificate's Subject Alternative Name (SAN), accessible
-    // from the `subject`, which is an instance of DistinguishedName
+    // from the `subject`, which is an instance of `DistinguishedName`.
     // (https://swiftpackageindex.com/apple/swift-certificates/documentation/x509/distinguishedname)
     print(presented.subject.description)
 
     promise.succeed(
-      .certificateVerified(VerificationMetadata(ValidatedCertificateChain(certificates)))
+      .certificateVerified(
+        VerificationMetadata(
+          ValidatedCertificateChain(certificates)
+        )
+      )
     )
   }
 }
@@ -127,15 +131,12 @@ The callback receives a list of [NIOSSLCertificate](https://swiftpackageindex.co
 that you can then process to extract the workload identity and validate it.
 Ensure that you call `promise.succeed()` or `promise.fail()` to complete the callback after the verification.
 
-> Warning: When you configure TLS for the transport, leaving `serverCertificateVerification` set to `.noVerification` means the transport doesn't call the validation callback you provide. Leave the default setting of `.noHostnameVerification`, or use `.fullVerification`, to ensure that the transport invokes the validation callback.
-
-```swift
-config.serverCertificateVerification = .noVerification
-```
+> Warning: When you configure TLS for the transport, leaving `serverCertificateVerification` set to `.noVerification` means the transport doesn't call the validation callback you provide.
+> Leave the default setting of `.noHostnameVerification`, or use `.fullVerification`, to ensure that the transport invokes the validation callback.
 
 ## Create a private CA for mTLS testing
 
-The [tls example code](https://github.com/grpc/grpc-swift-2/tree/main/Examples/tls) in the grpc-swift repository
+The [tls example code](https://github.com/grpc/grpc-swift-2/tree/main/Examples/tls) in the `grpc-swift-2` repository
 includes an example of setting up a short-lived CA and the relevant client and server credentials to test business logic working with mTLS.
 
 It builds that information in memory, and allows your test code to validate that the client and server certificates

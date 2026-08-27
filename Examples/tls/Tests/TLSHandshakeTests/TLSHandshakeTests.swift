@@ -25,10 +25,10 @@ import X509
 struct TLSHandshakeTests {
   // Server-authenticated TLS: the server presents a certificate signed by the demo CA; the
   // client trusts that CA and fully verifies the server's certificate, including its hostname
-  // (the certificate's SAN is 'localhost', matching where the client connects).
+  // (the certificate's SAN is `localhost`, matching where the client connects).
   @Test("Server-authenticated TLS")
   func tls() async throws {
-    // creates an in-memory certificate authority, server certificate, and private key
+    // Creates an in-memory certificate authority, server certificate, and private key
     // to use for TLS or mTLS validation.
     let pki = try DemoPKI()
 
@@ -65,7 +65,7 @@ struct TLSHandshakeTests {
   }
 
   // Mutual TLS: the server also requires and verifies a client certificate, and the client
-  // presents one -- both signed by the same demo CA, so a single 'trustRoots' value on each
+  // presents one --- both signed by the same demo CA, so a single `trustRoots` value on each
   // side is enough to verify the other.
   @Test("Mutual TLS")
   func mtls() async throws {
@@ -92,7 +92,6 @@ struct TLSHandshakeTests {
         privateKey: .bytes(pki.client.privateKeyDER, format: .der)
       ) { config in
         config.trustRoots = .certificates([.bytes(pki.caCertificateDER, format: .der)])
-        config.serverCertificateVerification = .fullVerification
       }
 
       let reply = try await withGRPCClient(
@@ -137,15 +136,19 @@ struct TLSHandshakeTests {
           // to more easily access the distinguished name (unique identity) of the subject of the certificate.
           let presented = try! Certificate(derEncoded: certificates[0].toDERBytes())
 
-          // In a SPIFEE-style workload validation, the client will have its unique identity
-          // encoded in the certificates Subject Alterantive Name (SAN), accessible
-          // from the `subject`, which is an instance of DistinguishedName
+          // In a SPIFFE-style workload validation, the client will have its unique identity
+          // encoded in the certificate's Subject Alternative Name (SAN), accessible
+          // from the `subject`, which is an instance of `DistinguishedName`.
           // (https://swiftpackageindex.com/apple/swift-certificates/documentation/x509/distinguishedname)
           #expect(presented.subject.description.contains("Example Demo Client"))
 
           calledCustomCallback.confirm()
           promise.succeed(
-            .certificateVerified(VerificationMetadata(ValidatedCertificateChain(certificates)))
+            .certificateVerified(
+              VerificationMetadata(
+                ValidatedCertificateChain(certificates)
+              )
+            )
           )
         }
       }
@@ -183,7 +186,7 @@ struct TLSHandshakeTests {
 
   // Custom client-side verification: the mirror image of the server-side case above, but
   // gated on `serverCertificateVerification` instead. The callback again receives the presented
-  // certificate chain -- the server's leaf certificate -- and a promise to fulfill.
+  // certificate chain --- the server's leaf certificate --- and a promise to fulfill.
   @Test("Custom client-side verification callback")
   func customClientVerificationCallback() async throws {
     let pki = try DemoPKI()
@@ -211,7 +214,11 @@ struct TLSHandshakeTests {
 
             calledCustomCallback.confirm()
             promise.succeed(
-              .certificateVerified(VerificationMetadata(ValidatedCertificateChain(certificates)))
+              .certificateVerified(
+                VerificationMetadata(
+                  ValidatedCertificateChain(certificates)
+                )
+              )
             )
           }
         }

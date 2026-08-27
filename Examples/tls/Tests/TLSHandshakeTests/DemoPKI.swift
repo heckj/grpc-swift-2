@@ -19,11 +19,11 @@ import Foundation
 import SwiftASN1
 import X509
 
-/// Generates a throw-away, in-memory combination of a (short lived) certificate authority,
+/// Generates a throwaway, in-memory combination of a short-lived certificate authority,
 /// along with a server certificate and a client certificate to use for validating mTLS logic for gRPC
 /// without writing a certificate or private key to disk.
 ///
-/// A new combination of all three is generated when DemoPKI is initialized. This follows the
+/// A new combination of all three is generated when `DemoPKI` is initialized. This follows the
 /// pattern used by tests in the package `grpc-swift-nio-transport`, but in this setup
 /// the client and server certificates are signed by the same CA, a little more aligned to validating
 /// mTLS.

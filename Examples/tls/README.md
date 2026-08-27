@@ -1,14 +1,14 @@
 # TLS
 
 This example demonstrates enabling TLS and mutual TLS (mTLS) on a gRPC service using
-a `TransportSecurity` configuration from the `grpc-swift-nio-transport` package, and showing 
+a `TransportSecurity` configuration from the `grpc-swift-nio-transport` package, and showing
 another test setup that uses `GRPCInProcessTransport`, which supports testing business logic
 without touching the network.
 
 ## Overview
 
 `DemoPKI` generates a throwaway certificate authority plus a server and client leaf certificate
-entirely in memory (via `swift-certificates` -- nothing is written to disk), fresh on every test
+entirely in memory (via `swift-certificates` --- nothing is written to disk), fresh on every test
 run. `Greeter` is a minimal `Helloworld_Greeter` implementation shared by both test suites below.
 
 ## What's tested
@@ -27,7 +27,7 @@ an ephemeral `127.0.0.1` port), using the in-memory certificates from `DemoPKI`:
 ### `Tests/InProcessGreeterTests`
 
 The same `Greeter` service, wired up with `GRPCInProcessTransport`'s `InProcessTransport()`
-instead. There's no socket and no TLS handshake -- the client and server talk to each other
+instead. There's no socket and no TLS handshake --- the client and server talk to each other
 entirely in memory within the test process. Reach for this pattern when a test needs to exercise
 service logic, not the transport it will eventually run over.
 

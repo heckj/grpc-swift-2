@@ -24,9 +24,7 @@ func snippetCode() async throws {
   let reply = try await withGRPCClient(
     transport: .http2NIOPosix(
       target: .dns(host: "your-gRPC-service.com"),
-      transportSecurity: .tls(configure: { config in
-        config.serverCertificateVerification = .noHostnameVerification
-      })
+      transportSecurity: .tls
     )
   ) { client in
     // Create a service endpoint client by wrapping the gRPC client
@@ -48,6 +46,18 @@ func snippetCode() async throws {
     return try await greeter.sayHello(.with { $0.name = "TLS client" })
   }
   #endif
+
+  let noHostnameVerificationReply = try await withGRPCClient(
+    transport: .http2NIOPosix(
+      target: .dns(host: "your-gRPC-service.com"),
+      transportSecurity: .tls(configure: { config in
+        config.serverCertificateVerification = .noHostnameVerification
+      })
+    )
+  ) { client in
+    let greeter = Helloworld_Greeter.Client(wrapping: client)
+    return try await greeter.sayHello(.with { $0.name = "TLS client" })
+  }
 
   let testingTransportSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .tls(
     certificateChain: [.file(path: "path/to/server-cert.pem", format: .pem)],
@@ -73,7 +83,9 @@ func snippetCode() async throws {
     transport: try .http2NIOPosix(
       target: .ipv4(address: "127.0.0.1", port: 8765),
       transportSecurity: .tls(configure: { config in
-        config.trustRoots = .certificates([.file(path: "certs/ca-cert.pem", format: .pem)])
+        config.trustRoots = .certificates([
+          .file(path: "certs/ca-cert.pem", format: .pem)
+        ])
       })
     )
   )
@@ -81,16 +93,24 @@ func snippetCode() async throws {
   // Code snippet examples for the mTLS.md article
 
   let mTLSServerSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .mTLS(
-    certificateChain: [.file(path: "path/to/server-cert.pem", format: .pem)],
+    certificateChain: [
+      .file(path: "path/to/server-cert.pem", format: .pem)
+    ],
     privateKey: .file(path: "path/to/server-key.pem", format: .pem)
   ) { config in
-    config.trustRoots = .certificates([.file(path: "path/to/ca-cert.pem", format: .pem)])
+    config.trustRoots = .certificates([
+      .file(path: "path/to/ca-cert.pem", format: .pem)
+    ])
   }
 
   let mTLSClientSecurity: HTTP2ClientTransport.Posix.TransportSecurity = .mTLS(
-    certificateChain: [.file(path: "path/to/client-cert.pem", format: .pem)],
+    certificateChain: [
+      .file(path: "path/to/client-cert.pem", format: .pem)
+    ],
     privateKey: .file(path: "path/to/client-key.pem", format: .pem)
   ) { config in
-    config.trustRoots = .certificates([.file(path: "path/to/ca-cert.pem", format: .pem)])
+    config.trustRoots = .certificates([
+      .file(path: "path/to/ca-cert.pem", format: .pem)
+    ])
   }
 }
