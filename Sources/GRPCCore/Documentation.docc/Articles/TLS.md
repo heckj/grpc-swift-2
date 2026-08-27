@@ -7,7 +7,7 @@ Encrypt gRPC connections and authenticate the server using the transport's TLS c
 gRPC Swift provides an abstraction that supports multiple kinds of network connections and their configuration.
 Other gRPC transports provide their own configuration options.
 
-Begin by choosing your transport, then import either the umbrella [GRPCNIOTransportHTTP2](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2)
+Begin by choosing the transport to use, then import either the umbrella [GRPCNIOTransportHTTP2](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2)
 product or the platform-specific [GRPCNIOTransportHTTP2Posix](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2posix) or [GRPCNIOTransportHTTP2TransportServices](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2transportservices) directly.
 
 With the dependency added, specify the transport and choose the security posture with the `transportSecurity:` parameter that you pass into the factory methods for the transports. Use `TransportServices` only on Apple platforms. The following table links to each factory method's documentation:
@@ -24,15 +24,16 @@ Each transport type provides its own `TransportSecurity` type that offers the ch
 - `.tls`: encrypt and authenticate the server
 - `.mTLS`: encrypt and authenticate both the client and the server
 
-This article covers configuring TLS connections. Read <doc:mTLS> for details on configuring mutual TLS.
+The remainder of this article covers configuring TLS connections.
+Read <doc:mTLS> for more information on configuring mutual TLS.
 
-## Choose and configure a transport security mode
+### Choose and configure a transport security mode
 
 When you choose `.tls`, you can use the system defaults, which verify the host certificate against the system's trusted certificates.
 You can also fully control the TLS configuration, including the certificate chain, the [trust roots or their locations](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransportcore/tlsconfig/trustrootssource), and the [level of certificate validation](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransportcore/tlsconfig/certificateverification) that the API provides.
 
 Configure the security for the transport when you create the client.
-The following example shows a default `.tls` configuration to an external host by its DNS name:
+The following example shows a default `.tls` configuration for connecting to an external host by its DNS name:
 
 ```swift
 let reply = try await withGRPCClient(
@@ -82,7 +83,7 @@ Code for gRPC Swift spans multiple packages and modules.
 The transport packages define distinct `TLSConfig` and `TransportSecurity` types per transport.
 The POSIX and TransportServices variants share case names for convenience, but they're separate types with their own initializers and factory methods.
 
-## Create self-signed certificates for local testing
+### Create self-signed certificates for local testing
 
 When you intend to use TLS, it can be convenient to create temporary, self-signed certificates for local testing.
 You can create a temporary certificate authority, server certificate, and private key to use locally.
@@ -119,7 +120,7 @@ let testingTransportSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .tl
 )
 ```
 
-The example above identifies the encoding format of the certificates that you load from the file system
+The example above identifies the encoding format of the certificates that you load from the file system.
 The gRPC Swift API provides support for both DER (`.der`) and PEM (`.pem`) encoded content using [SerializationFormat](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransportcore/tlsconfig/serializationformat).
 
 The `TransportServices` transport loads identities from the Keychain using Apple's [Security](https://developer.apple.com/documentation/security/) framework, specifically [SecIdentity](https://developer.apple.com/documentation/security/secidentity).
@@ -138,5 +139,10 @@ let client = GRPCClient(
 )
 ```
 
-> Tip: Trust-root certificates for TransportServices must be DER-encoded, while Posix transports support either PEM or DER encoding. You can transform a local CA certificate into DER encoding using the following command:
-> `openssl x509 -in ca-cert.pem -outform der -out ca-cert.der`
+> Tip: Trust-root certificates for TransportServices must be DER-encoded, while Posix transports support either PEM or DER encoding.
+
+You can transform a local CA certificate into DER encoding using the following command:
+
+```bash
+openssl x509 -in ca-cert.pem -outform der -out ca-cert.der
+```
