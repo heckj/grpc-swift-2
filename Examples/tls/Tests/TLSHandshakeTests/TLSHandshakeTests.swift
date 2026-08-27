@@ -92,6 +92,7 @@ struct TLSHandshakeTests {
         privateKey: .bytes(pki.client.privateKeyDER, format: .der)
       ) { config in
         config.trustRoots = .certificates([.bytes(pki.caCertificateDER, format: .der)])
+        config.serverCertificateVerification = .fullVerification
       }
 
       let reply = try await withGRPCClient(

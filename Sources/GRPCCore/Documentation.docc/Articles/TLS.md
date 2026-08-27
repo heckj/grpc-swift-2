@@ -78,7 +78,9 @@ let reply = try await withGRPCClient(
 }
 ```
 
-> Tip: gRPC Swift spans multiple packages — the transport packages define distinct `TLSConfig` and `TransportSecurity` types per transport. The Posix and TransportServices variants share case names for convenience, but they're separate types with separate initializers.
+Code for gRPC Swift spans multiple packages and modules.
+The transport packages define distinct `TLSConfig` and `TransportSecurity` types per transport.
+The POSIX and TransportServices variants share case names for convenience, but they're separate types with their own initializers and factory methods.
 
 ## Create self-signed certificates for local testing
 
@@ -93,14 +95,14 @@ The following example illustrates using `openssl` to:
 ```bash
 # Generate CA certificate - ca-key.pem, ca-cert.pem
 openssl req -x509 -newkey rsa:4096 -nodes \
-  -keyout ca-key.pem -out ca-cert.pem -days 365
+  -keyout ca-key.pem -out ca-cert.pem -days 28
 
 # Generate server certificate - server-key.pem, server-req.pem
 openssl req -newkey rsa:4096 -nodes \
   -keyout server-key.pem -out server-req.pem
 
 # Sign server certificate with CA - server-cert.pem
-openssl x509 -req -in server-req.pem -days 365 \
+openssl x509 -req -in server-req.pem -days 28 \
   -CA ca-cert.pem -CAkey ca-key.pem -CAcreateserial \
   -out server-cert.pem
 ```
@@ -108,8 +110,8 @@ openssl x509 -req -in server-req.pem -days 365 \
 With the Posix transport, use [.tls(certificateChain:privateKey:configure:)](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransporthttp2posix/grpcniotransportcore/http2servertransport/posix/transportsecurity/tls(certificatechain:privatekey:configure:)) for the server's TLS configuration.
 Use [TLSConfig.CertificateSource.file(path:format:)](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransportcore/tlsconfig/certificatesource/file(path:format:)) to reference your generated server certificate, and
 [TLSConfig.PrivateKeySource.file(path:format:)](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransportcore/tlsconfig/privatekeysource/file(path:format:)) to reference your generated server key.
-
 For example:
+
 ```swift
 let testingTransportSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .tls(
   certificateChain: [.file(path: "path/to/server-cert.pem", format: .pem)],
@@ -117,8 +119,8 @@ let testingTransportSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .tl
 )
 ```
 
-> Tip: Specify the format of the certificate and key when you load them. The gRPC Swift API provides
-> support for both DER (`.der`) and PEM (`.pem`) encoded content using [SerializationFormat](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransportcore/tlsconfig/serializationformat).
+The example above identifies the encoding format of the certificates that you load from the file system
+The gRPC Swift API provides support for both DER (`.der`) and PEM (`.pem`) encoded content using [SerializationFormat](https://swiftpackageindex.com/grpc/grpc-swift-nio-transport/documentation/grpcniotransportcore/tlsconfig/serializationformat).
 
 The `TransportServices` transport loads identities from the Keychain using Apple's [Security](https://developer.apple.com/documentation/security/) framework, specifically [SecIdentity](https://developer.apple.com/documentation/security/secidentity).
 
