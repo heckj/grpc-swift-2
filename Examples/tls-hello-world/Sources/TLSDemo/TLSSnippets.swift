@@ -16,6 +16,8 @@
 
 import GRPCCore
 import GRPCNIOTransportHTTP2
+import NIOSSL
+import X509
 
 func snippetCode() async throws {
 
@@ -50,9 +52,9 @@ func snippetCode() async throws {
   let noHostnameVerificationReply = try await withGRPCClient(
     transport: .http2NIOPosix(
       target: .dns(host: "your-gRPC-service.com"),
-      transportSecurity: .tls(configure: { config in
+      transportSecurity: .tls { config in
         config.serverCertificateVerification = .noHostnameVerification
-      })
+      }
     )
   ) { client in
     let greeter = Helloworld_Greeter.Client(wrapping: client)
@@ -67,12 +69,7 @@ func snippetCode() async throws {
   let server = GRPCServer(
     transport: .http2NIOPosix(
       address: .ipv4(host: "0.0.0.0", port: 0),
-      transportSecurity: .tls(
-        certificateChain: [
-          .file(path: "path/to/server-cert.pem", format: .pem)
-        ],
-        privateKey: .file(path: "path/to/server-key.pem", format: .pem)
-      )
+      transportSecurity: testingTransportSecurity
     ),
     services: [
       // .. service provider ..
@@ -82,11 +79,11 @@ func snippetCode() async throws {
   let client = GRPCClient(
     transport: try .http2NIOPosix(
       target: .ipv4(address: "127.0.0.1", port: 8765),
-      transportSecurity: .tls(configure: { config in
+      transportSecurity: .tls { config in
         config.trustRoots = .certificates([
           .file(path: "certs/ca-cert.pem", format: .pem)
         ])
-      })
+      }
     )
   )
 
@@ -112,5 +109,40 @@ func snippetCode() async throws {
     config.trustRoots = .certificates([
       .file(path: "path/to/ca-cert.pem", format: .pem)
     ])
+  }
+
+  // Code snippet example for the mTLS.md article's custom verification callback section
+  let pki = try InMemoryPKI()
+
+  let serverSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .mTLS(
+    certificateChain: [.bytes(pki.server.certificateDER, format: .der)],
+    privateKey: .bytes(pki.server.privateKeyDER, format: .der)
+  ) { config in
+    config.trustRoots = .certificates([
+      .bytes(pki.caCertificateDER, format: .der)
+    ])
+    config.customVerificationCallback = { certificates, promise in
+      // Convert from an NIOSSLCertificate into a Certificate type
+      // (https://swiftpackageindex.com/apple/swift-certificates/documentation/x509/certificate)
+      // from swift-certificates to more easily access the distinguished
+      // name (unique identity) of the subject of the certificate.
+      let presented = try! Certificate(derEncoded: certificates[0].toDERBytes())
+
+      // In a SPIFFE-style workload validation, the client will have
+      // its unique identity encoded in the certificate's Subject
+      // Alternative Name (SAN), accessible from the `subject`, which
+      // is an instance of `DistinguishedName`.
+      // (https://swiftpackageindex.com/apple/swift-certificates/documentation/x509/distinguishedname)
+      print(presented.subject.description)
+
+      // Add your validation logic, checking the certificates provided.
+      promise.succeed(
+        .certificateVerified(
+          VerificationMetadata(
+            ValidatedCertificateChain(certificates)
+          )
+        )
+      )
+    }
   }
 }

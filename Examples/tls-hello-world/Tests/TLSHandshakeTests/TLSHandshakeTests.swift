@@ -30,7 +30,7 @@ struct TLSHandshakeTests {
   func tls() async throws {
     // Creates an in-memory certificate authority, server certificate, and private key
     // to use for TLS or mTLS validation.
-    let pki = try DemoPKI()
+    let pki = try InMemoryPKI()
 
     let serverSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .tls(
       certificateChain: [.bytes(pki.server.certificateDER, format: .der)],
@@ -69,7 +69,7 @@ struct TLSHandshakeTests {
   // side is enough to verify the other.
   @Test("Mutual TLS")
   func mtls() async throws {
-    let pki = try DemoPKI()
+    let pki = try InMemoryPKI()
 
     let serverSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .mTLS(
       certificateChain: [.bytes(pki.server.certificateDER, format: .der)],
@@ -108,6 +108,125 @@ struct TLSHandshakeTests {
     }
   }
 
+  // Mints a client certificate on demand, the way `tls-hello-world greet --mode mtls
+  // --client-id <name>` does: rather than a pre-baked `InMemoryPKI.client`, a fresh leaf
+  // certificate is signed by the CA with a SPIFFE-style URI SAN baked in, and the server reads
+  // that identity back off the peer certificate chain via `ServerContext.transportSpecific`.
+  @Test("mTLS with an on-demand client identity")
+  func mtlsWithOnDemandClientIdentity() async throws {
+    let authority = try InMemoryPKI.CertificateAuthority.makeDemoAuthority()
+    let server = try authority.makeLeafCertificate(
+      commonName: "Example Demo Server",
+      extendedKeyUsage: .serverAuth,
+      subjectAlternativeNames: [.dnsName("localhost")]
+    )
+
+    let serverSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .mTLS(
+      certificateChain: [.bytes(server.certificateDER, format: .der)],
+      privateKey: .bytes(server.privateKeyDER, format: .der)
+    ) { config in
+      config.trustRoots = .certificates([.bytes(authority.certificateDER, format: .der)])
+    }
+
+    try await withGRPCServer(
+      transport: .http2NIOPosix(
+        address: .ipv4(host: "127.0.0.1", port: 0),
+        transportSecurity: serverSecurity
+      ),
+      services: [Greeter()]
+    ) { grpcServer in
+      let port = try #require(await grpcServer.listeningAddress?.ipv4?.port)
+
+      let identity = "spiffe://tls-hello-world.example/client/alice"
+      let client = try authority.makeLeafCertificate(
+        commonName: "Example Demo Client (alice)",
+        extendedKeyUsage: .clientAuth,
+        subjectAlternativeNames: [.uniformResourceIdentifier(identity)]
+      )
+
+      let clientSecurity: HTTP2ClientTransport.Posix.TransportSecurity = .mTLS(
+        certificateChain: [.bytes(client.certificateDER, format: .der)],
+        privateKey: .bytes(client.privateKeyDER, format: .der)
+      ) { config in
+        config.trustRoots = .certificates([.bytes(authority.certificateDER, format: .der)])
+      }
+
+      let reply = try await withGRPCClient(
+        transport: .http2NIOPosix(
+          target: .dns(host: "localhost", port: port),
+          transportSecurity: clientSecurity
+        )
+      ) { client in
+        let greeter = Helloworld_Greeter.Client(wrapping: client)
+        return try await greeter.sayHello(.with { $0.name = "alice" })
+      }
+
+      #expect(reply.message == "Hello, alice! Verified client identity: \(identity).")
+    }
+  }
+
+  // The mirror image of the previous test, the way `tls-hello-world greet --mode mtls
+  // --untrusted-ca` demonstrates an mTLS trust failure: the client certificate is signed by a
+  // CA the server never trusted, so the handshake itself fails --- the server never gets far
+  // enough to run `Greeter` at all.
+  @Test("mTLS rejects a client certificate signed by an untrusted CA")
+  func mtlsRejectsUntrustedClientCA() async throws {
+    let authority = try InMemoryPKI.CertificateAuthority.makeDemoAuthority()
+    let server = try authority.makeLeafCertificate(
+      commonName: "Example Demo Server",
+      extendedKeyUsage: .serverAuth,
+      subjectAlternativeNames: [.dnsName("localhost")]
+    )
+
+    let serverSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .mTLS(
+      certificateChain: [.bytes(server.certificateDER, format: .der)],
+      privateKey: .bytes(server.privateKeyDER, format: .der)
+    ) { config in
+      config.trustRoots = .certificates([.bytes(authority.certificateDER, format: .der)])
+    }
+
+    try await withGRPCServer(
+      transport: .http2NIOPosix(
+        address: .ipv4(host: "127.0.0.1", port: 0),
+        transportSecurity: serverSecurity
+      ),
+      services: [Greeter()]
+    ) { grpcServer in
+      let port = try #require(await grpcServer.listeningAddress?.ipv4?.port)
+
+      // Signed by a CA the server has never heard of, rather than `authority`.
+      let untrustedAuthority = try InMemoryPKI.CertificateAuthority.makeDemoAuthority(
+        commonName: "Untrusted Impostor CA"
+      )
+      let client = try untrustedAuthority.makeLeafCertificate(
+        commonName: "Example Demo Client (mallory)",
+        extendedKeyUsage: .clientAuth,
+        subjectAlternativeNames: [
+          .uniformResourceIdentifier("spiffe://tls-hello-world.example/client/mallory")
+        ]
+      )
+
+      let clientSecurity: HTTP2ClientTransport.Posix.TransportSecurity = .mTLS(
+        certificateChain: [.bytes(client.certificateDER, format: .der)],
+        privateKey: .bytes(client.privateKeyDER, format: .der)
+      ) { config in
+        config.trustRoots = .certificates([.bytes(authority.certificateDER, format: .der)])
+      }
+
+      await #expect(throws: RPCError.self) {
+        try await withGRPCClient(
+          transport: .http2NIOPosix(
+            target: .dns(host: "localhost", port: port),
+            transportSecurity: clientSecurity
+          )
+        ) { client in
+          let greeter = Helloworld_Greeter.Client(wrapping: client)
+          _ = try await greeter.sayHello(.with { $0.name = "mallory" })
+        }
+      }
+    }
+  }
+
   // Custom server-side verification example
 
   // Instead of one of the built-in verification modes, this example runs its own
@@ -118,7 +237,7 @@ struct TLSHandshakeTests {
   // `noHostnameVerification` (set by `.mTLS`'s defaults) rather than `.noVerification`.
   @Test("Custom server-side verification callback")
   func customServerVerificationCallback() async throws {
-    let pki = try DemoPKI()
+    let pki = try InMemoryPKI()
 
     try await confirmation(expectedCount: 1) { calledCustomCallback in
       let serverSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .mTLS(
@@ -128,7 +247,7 @@ struct TLSHandshakeTests {
         config.trustRoots = .certificates([.bytes(pki.caCertificateDER, format: .der)])
         config.customVerificationCallback = { certificates, promise in
           // What the callback has access to: the peer's presented certificate chain (just the
-          // client's leaf certificate here, since DemoPKI signs it directly with the CA), and a
+          // client's leaf certificate here, since InMemoryPKI signs it directly with the CA), and a
           // promise that must be fulfilled with the verification outcome.
 
           // Convert from an NIOSSLCertificate into a swift-certificates Certificate
@@ -189,7 +308,7 @@ struct TLSHandshakeTests {
   // certificate chain --- the server's leaf certificate --- and a promise to fulfill.
   @Test("Custom client-side verification callback")
   func customClientVerificationCallback() async throws {
-    let pki = try DemoPKI()
+    let pki = try InMemoryPKI()
 
     let serverSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .tls(
       certificateChain: [.bytes(pki.server.certificateDER, format: .der)],

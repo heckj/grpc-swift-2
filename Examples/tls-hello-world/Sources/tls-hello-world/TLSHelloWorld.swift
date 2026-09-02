@@ -14,15 +14,14 @@
  * limitations under the License.
  */
 
-import GRPCCore
+import ArgumentParser
 
-package struct Greeter: Helloworld_Greeter.SimpleServiceProtocol {
-  package init() {}
-
-  package func sayHello(
-    request: Helloworld_HelloRequest,
-    context: ServerContext
-  ) async throws -> Helloworld_HelloReply {
-    .with { $0.message = "Hello, \(request.name)! This connection was verified." }
-  }
+@main
+struct TLSHelloWorld: AsyncParsableCommand {
+  static let configuration = CommandConfiguration(
+    commandName: "tls-hello-world",
+    abstract:
+      "A TLS/mTLS variant of the greeter example: run a server and make requests with connections secured with TLS or mTLS.",
+    subcommands: [Serve.self, Greet.self]
+  )
 }

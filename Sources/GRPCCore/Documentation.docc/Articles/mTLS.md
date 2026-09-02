@@ -143,7 +143,7 @@ Ensure that you call `promise.succeed()` or `promise.fail()` to complete the cal
 
 ## Create a private CA for mTLS testing
 
-The [tls example code](https://github.com/grpc/grpc-swift-2/tree/main/Examples/tls) in the `grpc-swift-2` repository
+The [tls-hello-world example code](https://github.com/grpc/grpc-swift-2/tree/main/Examples/tls-hello-world) in the `grpc-swift-2` repository
 includes an example of setting up a short-lived CA and the relevant client and server credentials to test business logic working with mTLS.
 
 It builds that information in memory, and allows your test code to validate that the client and server certificates
