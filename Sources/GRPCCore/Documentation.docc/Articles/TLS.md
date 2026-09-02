@@ -70,9 +70,9 @@ For example, the following code disables hostname verification during TLS valida
 let reply = try await withGRPCClient(
   transport: .http2NIOPosix(
     target: .dns(host: "your-gRPC-service.com"),
-    transportSecurity: .tls(configure: { config in
+    transportSecurity: .tls { config in
       config.serverCertificateVerification = .noHostnameVerification
-    })
+    }
   )
 ) { client in
   // ...
