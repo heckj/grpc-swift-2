@@ -42,10 +42,7 @@ let reply = try await withGRPCClient(
     transportSecurity: .tls
   )
 ) { client in
-  // Create a service endpoint client by wrapping the gRPC client
-  let greeter = Helloworld_Greeter.Client(wrapping: client)
-  // and make a request
-  return try await greeter.sayHello(.with { $0.name = "TLS client" })
+  // ...
 }
 ```
 

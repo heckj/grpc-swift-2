@@ -103,19 +103,24 @@ let serverSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .mTLS(
   certificateChain: [.bytes(pki.server.certificateDER, format: .der)],
   privateKey: .bytes(pki.server.privateKeyDER, format: .der)
 ) { config in
-  config.trustRoots = .certificates([.bytes(pki.caCertificateDER, format: .der)])
+  config.trustRoots = .certificates([
+    .bytes(pki.caCertificateDER, format: .der)
+  ])
   config.customVerificationCallback = { certificates, promise in
-    // Convert from an NIOSSLCertificate into a swift-certificates Certificate
+    // Convert from an NIOSSLCertificate into a Certificate type  
     // (https://swiftpackageindex.com/apple/swift-certificates/documentation/x509/certificate)
-    // to more easily access the distinguished name (unique identity) of the subject of the certificate.
+    // from swift-certificates to more easily access the distinguished
+    // name (unique identity) of the subject of the certificate.
     let presented = try! Certificate(derEncoded: certificates[0].toDERBytes())
 
-    // In a SPIFFE-style workload validation, the client will have its unique identity
-    // encoded in the certificate's Subject Alternative Name (SAN), accessible
-    // from the `subject`, which is an instance of `DistinguishedName`.
+    // In a SPIFFE-style workload validation, the client will have 
+    // its unique identity encoded in the certificate's Subject
+    // Alternative Name (SAN), accessible from the `subject`, which
+    // is an instance of `DistinguishedName`.
     // (https://swiftpackageindex.com/apple/swift-certificates/documentation/x509/distinguishedname)
     print(presented.subject.description)
 
+    // Add your validation logic, checking the certificates provided.
     promise.succeed(
       .certificateVerified(
         VerificationMetadata(
@@ -126,6 +131,8 @@ let serverSecurity: HTTP2ServerTransport.Posix.TransportSecurity = .mTLS(
   }
 }
 ```
+
+> Note: The above example shows how to access the certificate data in a callback, but does not do any validation. 
 
 The callback receives a list of [NIOSSLCertificate](https://swiftpackageindex.com/apple/swift-nio-ssl/documentation/niossl/niosslcertificate)
 that you can then process to extract the workload identity and validate it.
