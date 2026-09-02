@@ -132,11 +132,11 @@ The following example illustrates a client configured to access the same host it
 let client = GRPCClient(
   transport: try .http2NIOPosix(
     target: .ipv4(address: "127.0.0.1", port: 8765),
-    transportSecurity: .tls(configure: { config in
+    transportSecurity: .tls { config in
       config.trustRoots = .certificates([
         .file(path: "certs/ca-cert.pem", format: .pem)
       ])
-    })
+    }
   )
 )
 ```
